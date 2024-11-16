@@ -1,0 +1,13 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h2>Dashboard</h2>
+{% if user_role == 'super_admin' %}
+    <a href="{{ url_for('assign_role') }}" class="btn btn-secondary">Assign Roles</a>
+    <a href="{{ url_for('add_department') }}" class="btn btn-secondary">Add Department</a>
+{% elif user_role == 'admin' %}
+    <a href="{{ url_for('create_campaign') }}" class="btn btn-secondary">Create Campaign</a>
+{% endif %}
+
+{% endblock %}
