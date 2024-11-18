@@ -92,20 +92,64 @@ def submit_feedback():
 
 
 
+@app.route('/manage_departments', methods=['GET', 'POST'])
+@login_required
+@role_required('super_admin')
+def manage_departments():
+    if request.method == 'POST':
+        name = request.form.get('name').strip()
+
+    
+      
+    # Query all active departments
+    def get_all_departments():
+        departments = Department.query.filter(Department.department_id == current_user.department_id).all()
+        print(departments)
+    return render_template('manage_departments.html')
+    
 @app.route('/add_department', methods=['GET', 'POST'])
 @login_required
 @role_required('super_admin')
 def add_department():
     if request.method == 'POST':
-        name = request.form['name']
-        #$department = Department(name=name, created_at=datetime.datetime.now())
-        #db.session.add(Department)        
-        new_Department = Department(name=name, created_at=datetime.datetime.now())
-        db.session.add(new_Department)
+        name = request.form['name'].strip()
+        admin_id = request.form.get('user_id')
+        
+
+        # Check if the department name already exists
+        
+        if db.session.query(Department).filter_by(name=name).first():
+            flash("Department is already registered.", "danger")
+            return redirect(url_for('manage_departments'))
+        
+        
+
+        # Check if the specified admin exists and has an 'admin' role
+        admin_user = db.session.execute(db.select(Users).filter_by( id=admin_id, role='admin')).scalar_one()
+        print(admin_user)
+        if not admin_user:
+            flash("Selected admin does not exist or is not eligible.", "danger")
+            return redirect(url_for('manage_departments'))
+        
+        # Create the new department
+        new_department = Department(name=name, created_at=datetime.datetime.now())
+        db.session.add(new_department)
         db.session.commit()
-        flash(f"Department '{name}' added.","Department added successfully")
-        return redirect(url_for('manage_departments'))    
-    return render_template('manage_departments.html')
+        
+        # Assign the selected admin to the new department
+        admin_user.department_id = new_department.department_id
+        db.session.commit()
+        
+        flash(f"Department '{name}' added and assigned to {admin_user.name}.", "success")
+        return redirect(url_for('manage_departments'))
+    
+    # Get a list of eligible admin users to assign
+    eligible_admins = Users.query.filter_by(role='admin').all()
+    departments = db.session.execute(db.select(Department)).scalars()
+    return render_template('manage_departments.html', eligible_admins=eligible_admins, departments=departments)
+
+
+
 
 @app.route('/delete_department/<int:department_id>', methods=['POST'])
 @login_required
@@ -138,7 +182,7 @@ def register():
             return redirect(url_for('register'))
 
         # Create new user
-        new_user = Users(name=name, email=email, role='super_admin')  # Default role
+        new_user = Users(name=name, email=email, role='viewer')  # Default role
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
@@ -153,11 +197,11 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        print(password)
+        
 
         # user = db.session.query(Users.query.filter_by(email=email))
         user =  db.session.execute(db.select(Users).filter_by(email=email)).scalar_one()
-        print(user.password)
+    
         # user = Users.query.filter_by(email=email).first()
         if user and bcrypt.check_password_hash(user.password ,password):
 
@@ -166,11 +210,11 @@ def login():
             flash("Login successful", "success")
             # Redirect based on role
             if user.role == 'super_admin':
-                return redirect(url_for('assign_role'))  # Super Admin dashboard
+                return redirect(url_for('dashboard'))  # Super Admin dashboard
             elif user.role == 'admin':
-                return redirect(url_for('assgn_role'))  # Admin dashboard
+                return redirect(url_for('dashboard'))  # Admin dashboard
             else:
-                return redirect(url_for('assign_role'))  # Viewer route
+                return redirect(url_for('dashboard'))  # Viewer route
         else:
             flash("Invalid email or password", "danger")
     return render_template('login.html')
@@ -217,6 +261,10 @@ def create_campaign():
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
+        if not hasattr(current_user,'department_id') or current_user.department_id is None:
+            flash("Your account is not associated with any department.","error")
+            return redirect(url_for('dashboard'))
+        
         department_id = current_user.department_id  # Assuming admins belong to a department
         
         new_campaign = Campaign(name=name, description=description, department_id=department_id)
@@ -244,3 +292,34 @@ def view_feedback(campaign_id):
     campaign = Campaign.query.get_or_404(campaign_id)
     feedbacks = feedbacks.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
     return render_template('view_feedback.html', campaign=campaign, feedbacks=feedbacks)
+
+@app.route('/add_users_departments', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def add_users_departments():
+    if request.method == 'POST':
+        user_id = request.form.get('user_id')
+        
+        # Fetch the user and the current admin's department
+        user = Users.query.get(user_id)
+        current_department = Department.query.get(current_user.department_id)
+        
+        # Validate the user and ensure they are not a super admin
+        if not user or user.role == 'super_admin':
+            flash("Invalid user or role. Only admins and viewers can be added.", "danger")
+            return redirect(url_for('manage_department_members'))
+        
+        # Assign the user to the current department
+        user.department_id = current_department.id
+        db.session.commit()
+        
+        flash(f"User '{user.name}' has been added to the department '{current_department.name}'.", "success")
+        return redirect(url_for('manage_department_members'))
+    
+    # Fetch users eligible to be added to the department
+    eligible_users = Users.query.filter(
+        (user.role == 'admin') | (user.role == 'viewer'),
+        Users.department_id == None  # Ensure the user isn't already in a department
+    ).all()
+    
+    return render_template('manage_department_members.html', eligible_users=eligible_users)

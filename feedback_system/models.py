@@ -15,6 +15,9 @@ class Department(db.Model):
     name = db.Column(db.String(255), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
     deleted_at = db.Column(db.DateTime, nullable=True)
+    #Relationships with users
+    #admins = db.relationship('Users', backref = 'department', lazy =True)
+
 
     def soft_delete(self):
         self.deleted_at = datetime.now()
@@ -27,7 +30,7 @@ class Users(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.Enum('super_admin', 'admin', 'viewer'), nullable=False)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'))
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'),nullable =True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     deleted_at = db.Column(db.DateTime, nullable=True)
 

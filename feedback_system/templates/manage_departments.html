@@ -1,25 +1,47 @@
 <!-- templates/manage_departments.html -->
 {% extends "base.html" %}
+
 {% block title %}Manage Departments{% endblock %}
+
 {% block content %}
 <h2>Manage Departments</h2>
+
+<!-- Add Department Form -->
 <form method="POST" action="{{ url_for('add_department') }}">
     <div class="form-group">
         <label for="name">Department Name:</label>
-        <input type="text" class="form-control" id="name" name="name" required>
+        <input type="text" class="form-control" id="name" name="name" placeholder="Enter department name" required>
+        <select name="user_id" id="user">{% for admin in eligible_admins%}
+            <option value="{{admin.id}}">{{admin.name}}</option>{%endfor%}
+        </select>
     </div>
     <button type="submit" class="btn btn-primary">Add Department</button>
 </form>
+
 <hr>
+
+<!-- Departments Table -->
 <h3>Existing Departments</h3>
 <ul class="list-group">
-    {% for department in departments %}
+    {% if departments %}
         <li class="list-group-item d-flex justify-content-between align-items-center">
-            {{ department.name }}
-            <form method="POST" action="{{ url_for('delete_department', department_id=department.id) }}">
-                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-            </form>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Department Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for department in departments %}
+                    <tr>
+                        <td>{{ department.name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </li>
-    {% endfor %}
+    {% else %}
+        <li class="list-group-item">No departments available.</li>
+    {% endif %}
 </ul>
 {% endblock %}
