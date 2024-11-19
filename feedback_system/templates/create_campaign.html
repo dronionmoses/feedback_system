@@ -12,6 +12,14 @@
         <label for="description">Description:</label>
         <textarea class="form-control" id="description" name="description" required></textarea>
     </div>
+    <div class="form-group">
+        <label for="feedback_type">Feedback Type</label>
+        <select id="feedback_type" name="feedback_type" class="form-control">
+            <option value="general">General</option>
+            <option value="docket-wise">Docket-wise</option>
+            <option value="service-wise">Service-wise</option>
+        </select>
+    </div>
     <button type="submit" class="btn btn-primary">Create Campaign</button>
 </form>
 {% endblock %}

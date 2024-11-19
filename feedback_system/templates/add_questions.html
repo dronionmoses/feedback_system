@@ -1,0 +1,30 @@
+<!-- templates/add_questions.html -->
+{% extends "base.html" %}
+{% block title %}Add Questions{% endblock %}
+{% block content %}
+<h2>Add Questions for Campaign: {{ campaign.name }}</h2>
+<form method="POST">
+    <div id="question-container">
+        <div class="form-group">
+            <label for="question_1">Question 1</label>
+            <input type="text" id="question_1" name="questions" class="form-control" required>
+        </div>
+    </div>
+    <button type="button" id="add-question" class="btn btn-secondary">Add Another Question</button>
+    <button type="submit" class="btn btn-primary">Save Questions</button>
+</form>
+
+<script>
+    let questionCount = 1;
+    document.getElementById('add-question').addEventListener('click', () => {
+        questionCount++;
+        const container = document.getElementById('question-container');
+        const newQuestion = `
+            <div class="form-group">
+                <label for="question_${questionCount}">Question ${questionCount}</label>
+                <input type="text" id="question_${questionCount}" name="questions" class="form-control" required>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', newQuestion);
+    });
+</script>
+{% endblock %}

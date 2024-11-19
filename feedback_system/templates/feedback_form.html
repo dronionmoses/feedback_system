@@ -1,0 +1,35 @@
+<!-- templates/design_feedback_form.html -->
+{% extends "base.html" %}
+{% block title %}Design Feedback Form{% endblock %}
+{% block content %}
+<h2>Design Feedback Form for Campaign: {{ campaign.name }}</h2>
+<form method="POST">
+    <div class="form-group">
+        <label for="logo_url">Optional Department Logo URL</label>
+        <input type="url" id="logo_url" name="logo_url" class="form-control" placeholder="https://example.com/logo.png">
+    </div>
+    <div id="question-container">
+        <h4>Questions</h4>
+        <div class="form-group">
+            <label for="question_1">Question 1</label>
+            <input type="text" id="question_1" name="questions" class="form-control" required>
+        </div>
+    </div>
+    <button type="button" id="add-question" class="btn btn-secondary">Add Another Question</button>
+    <button type="submit" class="btn btn-primary">Submit Feedback Form</button>
+</form>
+
+<script>
+    let questionCount = 1;
+    document.getElementById('add-question').addEventListener('click', () => {
+        questionCount++;
+        const container = document.getElementById('question-container');
+        const newQuestion = `
+            <div class="form-group">
+                <label for="question_${questionCount}">Question ${questionCount}</label>
+                <input type="text" id="question_${questionCount}" name="questions" class="form-control" required>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', newQuestion);
+    });
+</script>
+{% endblock %}

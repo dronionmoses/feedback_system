@@ -13,7 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
 # import routes  # Import routes (we’ll create this later)
-from models import Campaign, Feedback, Department ,Users
+from models import Campaign, Feedback, Department ,Users, Question, Docket  
 # from models import *
 # with app.app_context():            #import app and db from your app package
 #     db.create_all()                #create the tables based on models
@@ -261,20 +261,66 @@ def create_campaign():
     if request.method == 'POST':
         name = request.form['name']
         description = request.form['description']
-        if not hasattr(current_user,'department_id') or current_user.department_id is None:
-            flash("Your account is not associated with any department.","error")
+        feedback_type = request.form['feedback_type']
+
+        if not hasattr(current_user, 'department_id') or current_user.department_id is None:
+            flash("Your account is not associated with any department.", "error")
             return redirect(url_for('dashboard'))
         
         department_id = current_user.department_id  # Assuming admins belong to a department
         
-        new_campaign = Campaign(name=name, description=description, department_id=department_id)
+        # Create a new campaign
+        new_campaign = Campaign(name=name, description=description, feedback_type=feedback_type, department_id=department_id)
         db.session.add(new_campaign)
         db.session.commit()
-        flash("Campaign created successfully.", "success")
-        return redirect(url_for('dashboard'))
+        flash("Campaign created successfully. Now design your feedback form.", "success")
+        return redirect(url_for('design_feedback_form', campaign_id=new_campaign.campaign_id))
     
     return render_template('create_campaign.html')
 
+@app.route('/add_questions/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def add_questions(campaign_id):
+    campaign = Campaign.query.get_or_404(campaign_id)
+
+    if request.method == 'POST':
+        questions = request.form.getlist('questions')
+
+        for question_text in questions:
+            new_question = Question(campaign_id=campaign_id, question_text=question_text)
+            db.session.add(new_question)
+
+        db.session.commit()
+        flash(f"Questions added successfully to the campaign '{campaign.name}'.", "success")
+        return redirect(url_for('dashboard'))
+
+    return render_template('add_questions.html', campaign=campaign)
+
+@app.route('/design_feedback_form/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def design_feedback_form(campaign_id):
+    campaign = Campaign.query.get_or_404(campaign_id)
+
+    if request.method == 'POST':
+        logo_url = request.form.get('logo_url', None)
+        questions = request.form.getlist('questions')
+
+        # Save each question to the database and link it to the campaign
+        for question_text in questions:
+            new_question = Question(campaign_id=campaign_id, question_text=question_text)
+            db.session.add(new_question)
+
+        # Optionally update the campaign with the logo URL
+        if logo_url:
+            campaign.logo_url = logo_url
+
+        db.session.commit()
+        flash(f"Feedback form for campaign '{campaign.name}' has been designed successfully.", "success")
+        return redirect(url_for('dashboard'))
+
+    return render_template('feedback_form.html', campaign=campaign)
 
 
 @app.route('/dashboard')
@@ -285,6 +331,7 @@ def dashboard():
     user_role = session.get('user_role')
     return render_template('dashboard.html', user_role=user_role)
 
+
 @app.route('/view_feedback/<int:campaign_id>', methods=['GET'])
 @login_required
 @role_required('admin', 'viewer')
@@ -293,33 +340,68 @@ def view_feedback(campaign_id):
     feedbacks = feedbacks.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
     return render_template('view_feedback.html', campaign=campaign, feedbacks=feedbacks)
 
-@app.route('/add_users_departments', methods=['GET', 'POST'])
+@app.route('/manage_dockets', methods=['GET', 'POST'])
 @login_required
 @role_required('admin')
-def add_users_departments():
+def manage_dockets():
+    department_id = current_user.department_id
+    department = Department.query.get_or_404(department_id)
+
     if request.method == 'POST':
-        user_id = request.form.get('user_id')
+        action = request.form.get('action')
+        docket_name = request.form.get('docket_name')
+
+        if action == 'add':
+            new_docket = Docket(name=docket_name, department_id=department_id)
+            db.session.add(new_docket)
+            db.session.commit()
+            flash(f"Docket '{docket_name}' added successfully.", "success")
+        elif action == 'delete':
+            docket_id = request.form.get('docket_id')
+            docket = Docket.query.get(docket_id)
+            if docket:
+                db.session.delete(docket)
+                db.session.commit()
+                flash(f"Docket '{docket.name}' deleted successfully.", "success")
+            else:
+                flash("Invalid docket ID.", "danger")
+
+        return redirect(url_for('manage_dockets'))
+
+    dockets = Docket.query.filter_by(department_id=department_id).all()
+    return render_template('manage_dockets.html', department=department, dockets=dockets)
+
+# @app.route('/add_users_departments', methods=['GET', 'POST'])
+# @login_required
+# @role_required('admin')
+# def add_users_departments():
+#     if request.method == 'POST':
+#         user_id = request.form.get('user_id')
+#         user = Users.query.get(user_id)
         
-        # Fetch the user and the current admin's department
-        user = Users.query.get(user_id)
-        current_department = Department.query.get(current_user.department_id)
+#         # Fetch the user and the current admin's department
+#         user = Users.query.get(user_id)
+#         current_department = Department.query.get(current_user.department_id)
         
-        # Validate the user and ensure they are not a super admin
-        if not user or user.role == 'super_admin':
-            flash("Invalid user or role. Only admins and viewers can be added.", "danger")
-            return redirect(url_for('manage_department_members'))
+#         # Validate the user and ensure they are not a super admin
+#         if not user or user.role == 'super_admin':
+#             flash("Invalid user or role. Only admins and viewers can be added.", "danger")
+#             return redirect(url_for('manage_department_users'))
         
-        # Assign the user to the current department
-        user.department_id = current_department.id
-        db.session.commit()
+#         # Assign the user to the current department
+#         user.department_id = current_user.department_id
+#         db.session.commit()
         
-        flash(f"User '{user.name}' has been added to the department '{current_department.name}'.", "success")
-        return redirect(url_for('manage_department_members'))
+#         flash(f"User '{user.name}' has been added to the department '{current_department.name}'.", "success")
+#         return redirect(url_for('manage_department_users'))
     
-    # Fetch users eligible to be added to the department
-    eligible_users = Users.query.filter(
-        (user.role == 'admin') | (user.role == 'viewer'),
-        Users.department_id == None  # Ensure the user isn't already in a department
-    ).all()
+#     # Fetch users eligible to be added to the department
+#     eligible_users = Users.query.filter((user.role == 'admin') | (user.role == 'viewer'),
+#      Users.department_id == None  # Ensure the user isn't already in a department
+#     ).all()
     
-    return render_template('manage_department_members.html', eligible_users=eligible_users)
+#     return render_template('manage_department_users.html', eligible_users=eligible_users)
+
+
+    # Fetch eligible users
+    #eligible_users = Users.query.filter((Users.role.in_(['admin', 'viewer'])) & (Users.department_id == None)).all()

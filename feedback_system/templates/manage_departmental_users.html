@@ -1,0 +1,17 @@
+<!-- templates/add_users_departments.html -->
+{% extends "base.html" %}
+{% block title %}Add Users to Department{% endblock %}
+{% block content %}
+<h2>Add Users to Department</h2>
+<form method="POST">
+    <div class="form-group">
+        <label for="user_id">Select User</label>
+        <select id="user_id" name="user_id" class="form-control">
+            {% for user in eligible_users %}
+                <option value="{{ user.user_id }}">{{ user.name }} - {{ user.email }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Add User</button>
+</form>
+{% endblock %}
