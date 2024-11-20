@@ -9,7 +9,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from flask import abort
 import datetime
-from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 
 # import routes  # Import routes (we’ll create this later)
@@ -81,7 +80,7 @@ def submit_feedback():
         department_id = request.form['department_id']
         campaign_id = request.form['campaign_id']
         comments = request.form['comments']
-        feedback = Feedback(department_id=department_id, campaign_id=campaign_id, comments=comments, created_at=datetime.datetime.utcnow())
+        feedback = Feedback(department_id=department_id, campaign_id=campaign_id, comments=comments, created_at=datetime.datetime.now())
         db.session.add(feedback)
         db.session.commit()
         flash("Feedback submitted successfully", "success")
@@ -126,19 +125,27 @@ def add_department():
 
         # Check if the specified admin exists and has an 'admin' role
         admin_user = db.session.execute(db.select(Users).filter_by( id=admin_id, role='admin')).scalar_one()
-        print(admin_user)
         if not admin_user:
             flash("Selected admin does not exist or is not eligible.", "danger")
             return redirect(url_for('manage_departments'))
         
-        # Create the new department
-        new_department = Department(name=name, created_at=datetime.datetime.now())
-        db.session.add(new_department)
-        db.session.commit()
-        
-        # Assign the selected admin to the new department
-        admin_user.department_id = new_department.department_id
-        db.session.commit()
+        #Create the new department
+        try: 
+            new_department = Department(name=name, created_at=datetime.datetime.now())
+            db.session.add(new_department)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print(f"Insertion error: {e}")
+            flash("Failed to create new department")
+
+        #Assign the selected admin to the new department
+        try:
+            admin_user.department_id = new_department.department_id
+            db.session.commit()
+        except Exception as e:
+            print(f"Update error: {e}")
+            flash("Failed to assign admin user to a department")   
         
         flash(f"Department '{name}' added and assigned to {admin_user.name}.", "success")
         return redirect(url_for('manage_departments'))
@@ -156,7 +163,7 @@ def add_department():
 @role_required('super_admin')
 def delete_department(department_id):
     department = Department.query.get_or_404(department_id)
-    department.deleted_at = datetime.utcnow()  # Implementing soft delete
+    department.deleted_at = datetime.datetime.now()  # Implementing soft delete
     db.session.commit()
     flash(f"Department '{department.name}' deleted.", "success")
     return redirect(url_for('manage_departments'))
@@ -169,7 +176,6 @@ def register():
         name = request.form['name']
         email = request.form['email']
         password = request.form['password']
-        print(email)
 
         # Validate email domain
         if not email.endswith('@strathmore.edu'):
@@ -197,12 +203,13 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
+        session['email']=email
         
 
-        # user = db.session.query(Users.query.filter_by(email=email))
+        
         user =  db.session.execute(db.select(Users).filter_by(email=email)).scalar_one()
     
-        # user = Users.query.filter_by(email=email).first()
+        
         if user and bcrypt.check_password_hash(user.password ,password):
 
             session['user_id'] = user.id
@@ -236,6 +243,10 @@ class Users(db.Model):
     name = db.Column(db.String(50), nullable=False)
     password = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='viewer')
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'),nullable =True)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
 
     def set_password(self, password):
         self.password = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -254,6 +265,20 @@ def role_required(*roles):
         return decorated_function
     return wrapper
 
+class Department(db.Model):
+    _tablename_ = 'department'
+    department_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(255), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.now)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    #Relationships with users
+    #admins = db.relationship('Users', backref = 'department', lazy =True)
+
+
+    def soft_delete(self):
+        self.deleted_at = datetime.datetime.now()
+        db.session.commit()
+
 @app.route('/create_campaign', methods=['GET', 'POST'])
 @login_required
 @role_required('admin')
@@ -262,6 +287,8 @@ def create_campaign():
         name = request.form['name']
         description = request.form['description']
         feedback_type = request.form['feedback_type']
+
+        current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
 
         if not hasattr(current_user, 'department_id') or current_user.department_id is None:
             flash("Your account is not associated with any department.", "error")
@@ -274,53 +301,10 @@ def create_campaign():
         db.session.add(new_campaign)
         db.session.commit()
         flash("Campaign created successfully. Now design your feedback form.", "success")
-        return redirect(url_for('design_feedback_form', campaign_id=new_campaign.campaign_id))
+        return redirect(url_for('create_campaign', campaign_id=new_campaign.campaign_id))
     
     return render_template('create_campaign.html')
 
-@app.route('/add_questions/<int:campaign_id>', methods=['GET', 'POST'])
-@login_required
-@role_required('admin')
-def add_questions(campaign_id):
-    campaign = Campaign.query.get_or_404(campaign_id)
-
-    if request.method == 'POST':
-        questions = request.form.getlist('questions')
-
-        for question_text in questions:
-            new_question = Question(campaign_id=campaign_id, question_text=question_text)
-            db.session.add(new_question)
-
-        db.session.commit()
-        flash(f"Questions added successfully to the campaign '{campaign.name}'.", "success")
-        return redirect(url_for('dashboard'))
-
-    return render_template('add_questions.html', campaign=campaign)
-
-@app.route('/design_feedback_form/<int:campaign_id>', methods=['GET', 'POST'])
-@login_required
-@role_required('admin')
-def design_feedback_form(campaign_id):
-    campaign = Campaign.query.get_or_404(campaign_id)
-
-    if request.method == 'POST':
-        logo_url = request.form.get('logo_url', None)
-        questions = request.form.getlist('questions')
-
-        # Save each question to the database and link it to the campaign
-        for question_text in questions:
-            new_question = Question(campaign_id=campaign_id, question_text=question_text)
-            db.session.add(new_question)
-
-        # Optionally update the campaign with the logo URL
-        if logo_url:
-            campaign.logo_url = logo_url
-
-        db.session.commit()
-        flash(f"Feedback form for campaign '{campaign.name}' has been designed successfully.", "success")
-        return redirect(url_for('dashboard'))
-
-    return render_template('feedback_form.html', campaign=campaign)
 
 
 @app.route('/dashboard')
@@ -340,67 +324,6 @@ def view_feedback(campaign_id):
     feedbacks = feedbacks.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
     return render_template('view_feedback.html', campaign=campaign, feedbacks=feedbacks)
 
-@app.route('/manage_dockets', methods=['GET', 'POST'])
-@login_required
-@role_required('admin')
-def manage_dockets():
-    department_id = current_user.department_id
-    department = Department.query.get_or_404(department_id)
-
-    if request.method == 'POST':
-        action = request.form.get('action')
-        docket_name = request.form.get('docket_name')
-
-        if action == 'add':
-            new_docket = Docket(name=docket_name, department_id=department_id)
-            db.session.add(new_docket)
-            db.session.commit()
-            flash(f"Docket '{docket_name}' added successfully.", "success")
-        elif action == 'delete':
-            docket_id = request.form.get('docket_id')
-            docket = Docket.query.get(docket_id)
-            if docket:
-                db.session.delete(docket)
-                db.session.commit()
-                flash(f"Docket '{docket.name}' deleted successfully.", "success")
-            else:
-                flash("Invalid docket ID.", "danger")
-
-        return redirect(url_for('manage_dockets'))
-
-    dockets = Docket.query.filter_by(department_id=department_id).all()
-    return render_template('manage_dockets.html', department=department, dockets=dockets)
-
-# @app.route('/add_users_departments', methods=['GET', 'POST'])
-# @login_required
-# @role_required('admin')
-# def add_users_departments():
-#     if request.method == 'POST':
-#         user_id = request.form.get('user_id')
-#         user = Users.query.get(user_id)
-        
-#         # Fetch the user and the current admin's department
-#         user = Users.query.get(user_id)
-#         current_department = Department.query.get(current_user.department_id)
-        
-#         # Validate the user and ensure they are not a super admin
-#         if not user or user.role == 'super_admin':
-#             flash("Invalid user or role. Only admins and viewers can be added.", "danger")
-#             return redirect(url_for('manage_department_users'))
-        
-#         # Assign the user to the current department
-#         user.department_id = current_user.department_id
-#         db.session.commit()
-        
-#         flash(f"User '{user.name}' has been added to the department '{current_department.name}'.", "success")
-#         return redirect(url_for('manage_department_users'))
-    
-#     # Fetch users eligible to be added to the department
-#     eligible_users = Users.query.filter((user.role == 'admin') | (user.role == 'viewer'),
-#      Users.department_id == None  # Ensure the user isn't already in a department
-#     ).all()
-    
-#     return render_template('manage_department_users.html', eligible_users=eligible_users)
 
 
     # Fetch eligible users

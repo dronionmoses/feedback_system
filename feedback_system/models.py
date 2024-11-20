@@ -10,7 +10,7 @@ class Base(DeclarativeBase):
 db=SQLAlchemy(model_class=Base)
 
 class Department(db.Model):
-    _tablename_ = 'departments'
+    _tablename_ = 'department'
     department_id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), unique=True, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -30,7 +30,7 @@ class Users(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.Enum('super_admin', 'admin', 'viewer'), nullable=False)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'),nullable =True)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'),nullable =True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     deleted_at = db.Column(db.DateTime, nullable=True)
 
