@@ -45,15 +45,15 @@ class Users(db.Model):
 class Docket(db.Model):
     _tablename_ = 'dockets'
     docket_id = db.Column(db.Integer, primary_key=True)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=False)
     name = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
-    deleted_at = db.Column(db.DateTime, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True, default = None)
 
 class Campaign(db.Model):
     _tablename_ = 'campaigns'
     campaign_id = db.Column(db.Integer, primary_key=True)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=True)
     feedback_type = db.Column(db.Enum('general', 'docket-wise', 'service-wise'), nullable=False)
@@ -63,14 +63,15 @@ class Campaign(db.Model):
 class Question(db.Model):
     _tablename_ = 'questions'
     question_id = db.Column(db.Integer, primary_key=True)
-    campaign_id = db.Column(db.Integer, db.ForeignKey('campaigns.campaign_id'), nullable=False)
+    campaign_id = db.Column(db.Integer, db.ForeignKey('campaign.campaign_id'), nullable=False)
     question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 class Feedback(db.Model):
     _tablename_ = 'feedback'
-    feedback_id = db.Column(db.Integer, primary_key=True)
-    question_id = db.Column(db.Integer, db.ForeignKey('questions.question_id'), nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    question_id = db.Column(db.Integer, db.ForeignKey('question.question_id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     response = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
@@ -81,6 +82,6 @@ class Permission(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
     can_manage_dockets = db.Column(db.Boolean, default=False)
     can_manage_campaigns = db.Column(db.Boolean, default=True)
-    department_id = db.Column(db.Integer, db.ForeignKey('departments.department_id'))
+    department_id = db.Column(db.Integer, db.ForeignKey('department.department_id'))
     created_at = db.Column(db.DateTime, default=datetime.now)
     deleted_at = db.Column(db.DateTime, nullable=True)

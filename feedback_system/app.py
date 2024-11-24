@@ -11,6 +11,7 @@ from flask import abort
 import datetime
 from functools import wraps
 
+
 # import routes  # Import routes (we’ll create this later)
 from models import Campaign, Feedback, Department ,Users, Question, Docket  
 # from models import *
@@ -162,10 +163,22 @@ def add_department():
 @login_required
 @role_required('super_admin')
 def delete_department(department_id):
-    department = Department.query.get_or_404(department_id)
+    # department = Department.query.get_or_404(department_id)
+    # department.deleted_at = datetime.datetime.now()  # Implementing soft delete
+    # db.session.commit()
+    
+    
+    name = request.form['name'].strip()
+    department = db.session.execute(db.select(Department)).scalar_one()
     department.deleted_at = datetime.datetime.now()  # Implementing soft delete
-    db.session.commit()
-    flash(f"Department '{department.name}' deleted.", "success")
+    
+    if department:
+        db.session.delete(department)
+        db.session.commit()
+        flash(f"Department '{department.name}' deleted successfully.", "success")
+    else:
+        flash("Invalid docket ID.", "danger")
+    # flash(f"Department '{department.name}' deleted.", "success")
     return redirect(url_for('manage_departments'))
 
 
@@ -188,7 +201,7 @@ def register():
             return redirect(url_for('register'))
 
         # Create new user
-        new_user = Users(name=name, email=email, role='viewer')  # Default role
+        new_user = Users(name=name, email=email, role='super_admin')  # Default role
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
@@ -203,15 +216,12 @@ def login():
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
-        session['email']=email
-        
+        session['email'] = email
 
-        
-        user =  db.session.execute(db.select(Users).filter_by(email=email)).scalar_one()
+        user = db.session.execute(db.select(Users).filter_by(email=email)).scalar_one()
     
         
         if user and bcrypt.check_password_hash(user.password ,password):
-
             session['user_id'] = user.id
             session['user_role'] = user.role
             flash("Login successful", "success")
@@ -284,7 +294,7 @@ class Department(db.Model):
 @role_required('admin')
 def create_campaign():
     if request.method == 'POST':
-        name = request.form['name']
+        title = request.form['title']
         description = request.form['description']
         feedback_type = request.form['feedback_type']
 
@@ -297,15 +307,157 @@ def create_campaign():
         department_id = current_user.department_id  # Assuming admins belong to a department
         
         # Create a new campaign
-        new_campaign = Campaign(name=name, description=description, feedback_type=feedback_type, department_id=department_id)
+        new_campaign = Campaign(title=title, description=description,  department_id=department_id, feedback_type=feedback_type)#
         db.session.add(new_campaign)
         db.session.commit()
         flash("Campaign created successfully. Now design your feedback form.", "success")
-        return redirect(url_for('create_campaign', campaign_id=new_campaign.campaign_id))
+        return redirect(url_for('add_questions', campaign_id=new_campaign.campaign_id))
     
     return render_template('create_campaign.html')
 
+@app.route('/add_questions/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def add_questions(campaign_id):
+    campaign = db.session.execute(db.select(Campaign).filter_by(campaign_id= campaign_id)).scalar_one()
 
+    if request.method == 'POST':
+        questions = request.form.getlist('questions')
+        questions_type = request.form.getlist('questions_type')
+
+        for question_text,question_type in zip(questions,questions_type):
+            new_question = Question(campaign_id=campaign_id, question_text=question_text, question_type=question_type, created_at= datetime.datetime.now())
+            db.session.add(new_question)
+
+        db.session.commit()
+        flash(f"Questions added successfully to the campaign '{campaign.title}'.", "success")
+        return redirect(url_for('feedback_form', campaign_id=campaign.campaign_id))
+
+    return render_template('add_questions.html', campaign=campaign)
+
+@app.route('/feedback_form/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def feedback_form(campaign_id):
+    #title = request.form['title'].strip()
+    # Validate if the campaign exists and belongs to the admin's department
+    current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
+    department_id = current_user.department_id
+    
+    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id).first()
+    if campaign.department_id != current_user.department_id:
+        flash("You do not have permission to access this campaign.", "error")
+        return redirect(url_for('dashboard'))
+    
+
+    feedback_types = ['docket_wise', 'service_wise', 'general_wise']
+    dockets = db.session.execute(db.select(Docket).filter_by(department_id=current_user.department_id)).scalars()
+    docket_names = [docket.name for docket in dockets]
+    questions = db.session.execute(db.select(Question).filter_by(campaign_id = campaign_id)).scalars()
+    
+
+    if request.method == 'POST':
+        feedback_type = request.form.get('feedback_type')
+
+        if feedback_type not in feedback_types:
+            flash("Invalid feedback type selected.", "error")
+            return redirect(url_for('feedback_form', campaign_id=campaign_id))
+
+        # Handle feedback type: docket_wise
+        if feedback_type == 'docket_wise':
+            docket_option = request.form.get('docket_option')
+            if docket_option == 'one':
+                docket_name = request.form.get('docket_name')
+                if docket_name not in docket_names:
+                    flash(f"Docket '{docket_name}' does not exist. Please add it in Manage Dockets.", "error")
+                    return redirect(url_for('feedback_form', campaign_id=campaign_id))
+            elif docket_option == 'many':
+                selected_dockets = request.form.getlist('docket_names')
+                for name in selected_dockets:
+                    if name not in docket_names:
+                        flash(f"Docket '{name}' does not exist. Please add it in Manage Dockets.", "error")
+                        return redirect(url_for('feedback_form', campaign_id=campaign_id))
+            else:
+                flash("Invalid docket option selected.", "error")
+                return redirect(url_for('feedback_form', campaign_id=campaign_id))
+
+        # Handle feedback type: general_wise
+        elif feedback_type == 'general_wise':
+            open_ended_questions = [q for q in questions if q.question_type == 'open-ended']
+            if not open_ended_questions:
+                flash("At least one open-ended question is required for general feedback.", "error")
+                return redirect(url_for('feedback_form', campaign_id=campaign_id))
+
+        # Handle feedback type: service_wise
+        elif feedback_type == 'service_wise':
+            service_option = request.form.get('service_option')
+            if service_option == 'one_docket':
+                docket_name = request.form.get('docket_name')
+                if docket_name not in docket_names:
+                    flash(f"Docket '{docket_name}' does not exist. Please add it in Manage Dockets.", "error")
+                    return redirect(url_for('feedback_form', campaign_id=campaign_id))
+            elif service_option == 'all_dockets':
+                if not dockets:
+                    flash("No dockets available for the department.", "error")
+                    return redirect(url_for('feedback_form', campaign_id=campaign_id))
+            else:
+                flash("Invalid service option selected.", "error")
+                return redirect(url_for('feedback_form', campaign_id=campaign_id))
+
+        # Render form overview for confirmation
+        return render_template('feedbackform_overview.html', campaign=campaign, questions=questions)
+
+    return render_template('feedback_form.html', campaign=campaign, questions=questions, dockets=dockets)
+
+@app.route('/manage_dockets', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def manage_dockets():
+    current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
+    department_id = current_user.department_id
+    department = Department.query.get_or_404(department_id)
+    
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        docket_name = request.form.get('docket_name')
+
+        # Check if the docket name already exists
+        
+        if db.session.query(Docket).filter_by(name=docket_name).first():
+            flash("Docket is already registered.", "danger")
+            return redirect(url_for('manage_dockets'))
+
+        #Create the new docket
+        if action == 'add':
+            try:           
+                new_docket = Docket(name=docket_name, department_id=department_id, created_at=datetime.datetime.now())
+                db.session.add(new_docket)
+                db.session.commit()
+                flash(f"Docket '{docket_name}' added successfully.", "success")
+            except Exception as e:
+                db.session.rollback()
+                print(f"Insertion error: {e}")
+                flash("Failed to create new docket")
+            flash(f"Docket '{docket_name}' added successfully.", "success")
+
+        #Delete the docket    
+        elif action == 'delete':
+
+            docket_id = request.form.get('docket_id')
+            
+            docket = db.session.execute(db.select(Docket).filter_by(docket_id=docket_id)).scalar_one()
+            if docket:
+                docket.deleted_at = datetime.datetime.now()  # Implementing soft delete
+                db.session.commit()
+                flash(f"Docket {docket.name} deleted successfully","success")
+
+           
+
+        return redirect(url_for('manage_dockets'))
+
+    dockets = db.session.execute(db.select(Docket).filter_by(deleted_at = None)).scalars()    
+    return render_template('manage_dockets.html', department=department, dockets=dockets)
 
 @app.route('/dashboard')
 @login_required
@@ -324,7 +476,3 @@ def view_feedback(campaign_id):
     feedbacks = feedbacks.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
     return render_template('view_feedback.html', campaign=campaign, feedbacks=feedbacks)
 
-
-
-    # Fetch eligible users
-    #eligible_users = Users.query.filter((Users.role.in_(['admin', 'viewer'])) & (Users.department_id == None)).all()

@@ -1,0 +1,40 @@
+<!-- templates/manage_dockets.html -->
+{% extends "base.html" %}
+{% block title %}Manage Dockets{% endblock %}
+{% block content %}
+<h2>Manage Dockets for Department: {{ department.name }}</h2>
+
+<h3>Add a New Docket</h3>
+<form method="POST">
+    <div class="form-group">
+        <label for="docket_name">Docket Name</label>
+        <input type="text" id="docket_name" name="docket_name" class="form-control" required>
+    </div>
+    <input type="hidden" name="action" value="add">
+    <button type="submit" class="btn btn-primary">Add Docket</button>
+</form>
+
+<h3>Existing Dockets</h3>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for docket in dockets %}
+        <tr>
+            <td>{{ docket.name }}</td>
+            <td>
+                <form method="POST" style="display:inline;">
+                    <input type="hidden" name="docket_id" value="{{ docket.docket_id }}">
+                    <input type="hidden" name="action" value="delete"> 
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

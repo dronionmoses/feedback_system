@@ -35,6 +35,13 @@
                     {% for department in departments %}
                     <tr>
                         <td>{{ department.name }}</td>
+                        <td>
+                            <form method="POST" style="display:inline;" style="text-align:right;">
+                                <input type="hidden" name="department_id" value="{{ department.id }}">
+                                <input type="hidden" name="action" value="delete">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

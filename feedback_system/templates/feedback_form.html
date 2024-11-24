@@ -1,0 +1,90 @@
+<!-- templates/create_feedback_form.html -->
+{% extends "base.html" %}
+{% block title %}Create Feedback Form{% endblock %}
+{% block content %}
+<h2>Create Feedback Form for Campaign: {{ campaign.name }}</h2>
+
+<form method="POST">
+    <div class="form-group">
+        <label for="feedback_type">Select Feedback Type:</label>
+        <select id="feedback_type" name="feedback_type" class="form-control" required>
+            <option value="">-- Select --</option>
+            <option value="docket_wise">Docket Wise</option>
+            <option value="service_wise">Service Wise</option>
+            <option value="general_wise">General Wise</option>
+        </select>
+    </div>
+
+    <div id="docket-wise-options" style="display: none;">
+        <label>Is this feedback for one or multiple dockets?</label>
+        <div class="form-check">
+            <input type="radio" id="one_docket" name="docket_option" value="one" class="form-check-input">
+            <label class="form-check-label" for="one_docket">One Docket</label>
+                                 
+        </div>
+        <div id="docket_name" style="display: none;">
+            <input class="form-control"  type="text" name="docket_name"> 
+        </div>
+        <div class="form-check">
+            <input type="radio" id="many_dockets" name="docket_option" value="many" class="form-check-input">
+            <label class="form-check-label" for="many_dockets">Multiple Dockets</label>
+        </div>
+        <div id="docket-selection" style="display: none;">
+            <label for="docket_names">Select Dockets:</label>
+            <select id="docket_names" name="docket_names" class="form-control" multiple>
+                {% for docket in dockets %}
+                <option value="{{ docket.name }}">{{ docket.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div id="service-wise-options" style="display: none;">
+        <label>Service-Wise Feedback Options:</label>
+        <div class="form-check">
+            <input type="radio" id="service_one_docket" name="service_option" value="one_docket" class="form-check-input">
+            <label class="form-check-label" for="service_one_docket">One Docket</label>
+        </div>
+        <div class="form-check">
+            <input type="radio" id="service_all_dockets" name="service_option" value="all_dockets" class="form-check-input">
+            <label class="form-check-label" for="service_all_dockets">All Dockets</label>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Generate Feedback Form</button>
+</form>
+
+<script>
+    const feedbackType = document.getElementById('feedback_type');
+    const docketOptions = document.getElementById('docket-wise-options');
+    const docketSelection = document.getElementById('docket-selection');
+    const serviceOptions = document.getElementById('service-wise-options');
+    const docketname = document.getElementById('docket_name');
+    const onedocket = document.getElementById('one_docket');
+
+    //onedocket.addEventListener('change', () =>{
+        //if (onedocket.selected) {
+           // docketname.style.display = 'block';
+        
+        //}
+        //else{
+          //  docketname.style.display = 'none';
+        //}
+        
+   // })
+
+    feedbackType.addEventListener('change', () => {
+        const selected = feedbackType.value;
+        docketOptions.style.display = selected === 'docket_wise' ? 'block' : 'none';
+        serviceOptions.style.display = selected === 'service_wise' ? 'block' : 'none';
+    });
+
+    document.getElementById('many_dockets').addEventListener('change', () => {
+        docketSelection.style.display = 'block';
+    });
+
+    document.getElementById('one_docket').addEventListener('change', () => { 
+        docketname.style.display = 'none';
+    }); 
+</script>
+{% endblock %}
