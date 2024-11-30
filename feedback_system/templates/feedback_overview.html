@@ -1,0 +1,37 @@
+<!-- templates/feedbackform_overview.html -->
+{% extends "base.html" %}
+{% block title %}Feedback Form Overview{% endblock %}
+{% block content %}
+<h2>Feedback Form Overview for Campaign: {{ campaign.name }}</h2>
+
+<div class="card">
+    <div class="card-header">
+        <h3>Questions</h3>
+    </div>
+    <div class="card-body">
+        <ul class="list-group">
+            {% for question in questions %}
+                <li class="list-group-item">
+                    <strong>Question:</strong> {{ question.question_text }}<br>  <!-- Assuming 'question_text' is the correct attribute -->
+                    <strong>Type:</strong> {{ question.question_type }}
+                    <a href="{{ url_for('edit_questions', campaign_id=campaign.campaign_id) }}" class="btn btn-secondary btn-sm float-right">Edit</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<a href="{{ url_for('feedback_form', campaign_id=campaign.campaign_id) }}" class="btn btn-primary mt-3">Back to Feedback Form</a>
+<a href="{{ url_for('fill_feedback', campaign_id=campaign.campaign_id) }}" class="btn btn-success mt-3">Generate Feedback Now</a>  <!-- New button to generate feedback -->
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    <div class="alert alert-dismissible fade show" role="alert">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endwith %}
+
+{% endblock %}

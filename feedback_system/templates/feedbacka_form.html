@@ -1,0 +1,56 @@
+<!-- templates/feedback_form.html -->
+{% extends "base.html" %}
+{% block title %}Feedback Form{% endblock %}
+{% block content %}
+<div class="container mt-5">
+    <h2 class="text-center">Feedback Form for Campaign: {{ campaign.name }}</h2>
+    <form method="POST">
+        <div class="mb-4">
+            <h4>Please provide your feedback below:</h4>
+        </div>
+        
+        {% for question in questions %}
+            <div class="form-group mb-3">
+                <label>{{ question.question_text }}</label>
+                {% if question.question_type == 'open-ended' %}
+                    <textarea name="{{ question.id }}" class="form-control" rows="3" required></textarea>
+                {% elif question.question_type == 'multiple-choice' %}
+                    <select name="{{ question.id }}" class="form-control" required>
+                        <option value="">-- Select --</option>
+                        <option value="Option 1">Option 1</option>
+                        <option value="Option 2">Option 2</option>
+                        <!-- Add more options as needed -->
+                    </select>
+                {% elif question.question_type == 'rating' %}
+                    <input type="number" name="{{ question.id }}" min="1" max="5" class="form-control" required placeholder="Rate from 1 to 5">
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <button type="submit" class="btn btn-success btn-block">Submit Feedback</button>
+    </form>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="alert alert-dismissible fade show mt-3" role="alert">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+</div>
+
+<style>
+    body {
+        background-color: #f8f9fa;
+    }
+    .container {
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+</style>
+
+{% endblock %}

@@ -20,10 +20,9 @@
         <div class="form-check">
             <input type="radio" id="one_docket" name="docket_option" value="one" class="form-check-input">
             <label class="form-check-label" for="one_docket">One Docket</label>
-                                 
         </div>
         <div id="docket_name" style="display: none;">
-            <input class="form-control"  type="text" name="docket_name"> 
+            <input class="form-control" type="text" name="docket_name" placeholder="Enter Docket Name"> 
         </div>
         <div class="form-check">
             <input type="radio" id="many_dockets" name="docket_option" value="many" class="form-check-input">
@@ -51,7 +50,14 @@
         </div>
     </div>
 
-    <button type="submit" class="btn btn-primary">Generate Feedback Form</button>
+    <!-- General Wise Feedback Option -->
+    <div id="general-wise-options" style="display: none;">
+        <label>General Feedback:</label>
+        <textarea name="general_feedback" class="form-control" rows="4"></textarea>
+    </div>
+
+    <!-- Submit Button -->
+    <button type="submit" class="btn btn-primary mt-3">Generate Feedback Form</button>
 </form>
 
 <script>
@@ -59,32 +65,33 @@
     const docketOptions = document.getElementById('docket-wise-options');
     const docketSelection = document.getElementById('docket-selection');
     const serviceOptions = document.getElementById('service-wise-options');
-    const docketname = document.getElementById('docket_name');
-    const onedocket = document.getElementById('one_docket');
+    const generalOptions = document.getElementById('general-wise-options');
+    const docketNameInput = document.getElementById('docket_name');
 
-    //onedocket.addEventListener('change', () =>{
-        //if (onedocket.selected) {
-           // docketname.style.display = 'block';
-        
-        //}
-        //else{
-          //  docketname.style.display = 'none';
-        //}
-        
-   // })
-
+    // Show/hide options based on feedback type selection
     feedbackType.addEventListener('change', () => {
         const selected = feedbackType.value;
         docketOptions.style.display = selected === 'docket_wise' ? 'block' : 'none';
         serviceOptions.style.display = selected === 'service_wise' ? 'block' : 'none';
+        generalOptions.style.display = selected === 'general_wise' ? 'block' : 'none';
+        
+        // Reset visibility of other sections when changing feedback type
+        if (selected !== 'docket_wise') {
+            docketSelection.style.display = 'none';
+            docketNameInput.style.display = 'none';
+        }
     });
 
+    // Show/hide options based on docket option selection
     document.getElementById('many_dockets').addEventListener('change', () => {
         docketSelection.style.display = 'block';
+        docketNameInput.style.display = 'none'; // Hide single docket input
     });
 
     document.getElementById('one_docket').addEventListener('change', () => { 
-        docketname.style.display = 'none';
-    }); 
+        docketSelection.style.display = 'none'; // Hide multiple dockets selection
+        docketNameInput.style.display = 'block'; // Show single docket input
+    });
 </script>
+
 {% endblock %}

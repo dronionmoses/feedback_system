@@ -72,7 +72,7 @@ class Feedback(db.Model):
     _tablename_ = 'feedback'
     id = db.Column(db.Integer, primary_key=True)
     question_id = db.Column(db.Integer, db.ForeignKey('question.question_id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=False)
+    Campaign_id = db.Column(db.Integer, db.ForeignKey('campagn.campaign_id'), nullable=False)
     response = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.now)
 

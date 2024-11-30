@@ -1,5 +1,5 @@
 from flask import Flask, request, render_template, flash, redirect, url_for , session; from flask_cors import CORS; 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, json
 from flask import Flask
 from flask_login import current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -10,6 +10,7 @@ from functools import wraps
 from flask import abort
 import datetime
 from functools import wraps
+
 
 
 # import routes  # Import routes (we’ll create this later)
@@ -339,22 +340,19 @@ def add_questions(campaign_id):
 @login_required
 @role_required('admin')
 def feedback_form(campaign_id):
-    #title = request.form['title'].strip()
-    # Validate if the campaign exists and belongs to the admin's department
     current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
     department_id = current_user.department_id
     
-    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id).first()
-    if campaign.department_id != current_user.department_id:
+    # Validate if the campaign exists and belongs to the admin's department
+    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id, department_id=department_id).first()
+    if not campaign:
         flash("You do not have permission to access this campaign.", "error")
         return redirect(url_for('dashboard'))
-    
 
     feedback_types = ['docket_wise', 'service_wise', 'general_wise']
-    dockets = db.session.execute(db.select(Docket).filter_by(department_id=current_user.department_id)).scalars()
+    dockets = db.session.execute(db.select(Docket).filter_by(department_id=department_id)).scalars()
     docket_names = [docket.name for docket in dockets]
-    questions = db.session.execute(db.select(Question).filter_by(campaign_id = campaign_id)).scalars()
-    
+    questions = db.session.execute(db.select(Question).filter_by(campaign_id=campaign_id)).scalars()
 
     if request.method == 'POST':
         feedback_type = request.form.get('feedback_type')
@@ -405,9 +403,102 @@ def feedback_form(campaign_id):
                 return redirect(url_for('feedback_form', campaign_id=campaign_id))
 
         # Render form overview for confirmation
-        return render_template('feedbackform_overview.html', campaign=campaign, questions=questions)
+        return render_template('feedback_overview.html', campaign=campaign, questions=questions)
 
     return render_template('feedback_form.html', campaign=campaign, questions=questions, dockets=dockets)
+
+@app.route('/feedback_form_overview/<int:campaign_id>', methods=['GET'])
+@login_required
+@role_required('admin')
+def feedback_form_overview(campaign_id):
+    # Fetch current user and department
+    current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
+    department_id = current_user.department_id
+    
+    # Validate if the campaign exists and belongs to the admin's department
+    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id, department_id=department_id).first()
+    if not campaign:
+        flash("You do not have permission to access this campaign.", "error")
+        return redirect(url_for('dashboard'))
+
+    # Fetch questions related to the campaign
+    questions = db.session.execute(db.select(Question).filter_by(campaign_id=campaign_id)).scalars()
+
+    return render_template('edit_questions.html', campaign=campaign, questions=questions)
+
+@app.route('/edit_questions/<int:campaign_id>', methods=['GET', 'POST'])
+@login_required
+@role_required('admin')
+def edit_questions(campaign_id):
+    # Fetch current user and department
+    current_user = db.session.execute(db.select(Users).filter_by(email=session['email'])).scalar_one()
+    department_id = current_user.department_id
+    
+    # Validate if the campaign exists and belongs to the admin's department
+    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id, department_id=department_id).first()
+    if not campaign:
+        flash("You do not have permission to access this campaign.", "error")
+        return redirect(url_for('dashboard'))
+
+    # Fetch existing questions for the campaign
+    questions = db.session.execute(db.select(Question).filter_by(campaign_id=campaign_id)).scalars().all()  # Get all questions as a list
+
+    if request.method == 'POST':
+        # Handle editing existing questions
+        edited_questions = request.form.getlist('question')
+        question_types = request.form.getlist('question_type')
+        
+        for i, question_text in enumerate(edited_questions):
+            if question_text:
+                existing_question = questions[i]  # Access directly from the list
+                existing_question.text = question_text
+                existing_question.question_type = question_types[i]
+                db.session.commit()
+
+        # Handle adding new questions
+        new_question_text = request.form.get('new_question')
+        new_question_type = request.form.get('new_question_type')
+        if new_question_text and new_question_type:
+            new_question = Question(question_text=new_question_text, question_type=new_question_type, campaign_id=campaign_id)
+            db.session.add(new_question)
+            db.session.commit()
+            flash("New question added successfully!", "success")
+
+        flash("Questions updated successfully!", "success")
+        return redirect(url_for('edit_questions', campaign_id=campaign_id))
+
+    return render_template('edit_questions.html', campaign=campaign, questions=questions)
+
+@app.route('/fill_feedback/<int:campaign_id>', methods=['GET', 'POST'])
+def fill_feedback(campaign_id):
+    # Fetch the campaign based on the campaign_id
+    campaign = db.session.query(Campaign).filter_by(campaign_id=campaign_id).first()
+    if not campaign:
+        flash("Campaign not found.", "error")
+        return redirect(url_for('dashboard'))  # Redirect to a suitable page
+
+    # Fetch questions related to the campaign
+    questions = db.session.execute(db.select(Question).filter_by(campaign_id=campaign_id)).scalars().all()
+
+    if request.method == 'POST':
+        # Handle feedback submission
+        feedback_data = {}
+        for question in questions:
+            # Use question.question_id as a string for the key
+            feedback_value = request.form.get(str(Question.question_id))  # Get the response for each question
+            feedback_data[str(Question.question_id)] = feedback_value  # Use question ID as string key
+
+        # Save feedback data to the database
+        new_feedback = Feedback(campaign_id=campaign_id, responses=json.dumps(feedback_data))  # Serialize feedback data
+        db.session.add(new_feedback)
+        db.session.commit()
+
+        flash("Feedback submitted successfully!", "success")
+        
+        # Redirect back to the same feedback form page for another submission
+        return redirect(url_for('fill_feedback', campaign_id=campaign_id))
+
+    return render_template('feedback_form.html', campaign=campaign, questions=questions)
 
 @app.route('/manage_dockets', methods=['GET', 'POST'])
 @login_required
@@ -473,6 +564,5 @@ def dashboard():
 @role_required('admin', 'viewer')
 def view_feedback(campaign_id):
     campaign = Campaign.query.get_or_404(campaign_id)
-    feedbacks = feedbacks.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
+    feedbacks = Feedback.query.filter_by(campaign_id=campaign_id).all()  # Customize this query as needed
     return render_template('view_feedback.html', campaign=campaign, feedbacks=feedbacks)
-
